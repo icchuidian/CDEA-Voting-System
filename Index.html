@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Online Voting System</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      font-family: Arial;
+      text-align: center;
+      max-width: 480px;
+      margin: auto;
+      padding-top: 40px;
+    }
+    input, button {
+      padding: 12px;
+      margin: 6px;
+      width: 100%;
+    }
+    #voteSection { display: none; }
+  </style>
+</head>
+<body>
+
+<h2>Login</h2>
+
+<div id="loginSection">
+  <input id="userId" placeholder="User ID">
+  <input id="password" type="password" placeholder="Password">
+  <button onclick="login()">Login</button>
+</div>
+
+<div id="voteSection">
+  <h3>President</h3>
+  <button onclick="vote(1, 1)">Alice</button>
+  <button onclick="vote(1, 2)">Bob</button>
+
+  <h3>Vice President</h3>
+  <button onclick="vote(2, 3)">Carol</button>
+</div>
+
+<p id="message"></p>
+
+<h3>Live Results</h3>
+<canvas id="chart"></canvas>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbxwbUUGRQHX_N6SX2D2FI904L4F44z6Y3Uy0nNOTTjS1Ih6dKXVh4Mco_Nui-AeqgezLg/exec";
+let currentUser = "";
+
+function login() {
+  fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "login",
+      userId: userId.value,
+      password: password.value
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.status === "success") {
+      currentUser = userId.value;
+      loginSection.style.display = "none";
+      voteSection.style.display = "block";
+      loadResults();
+    } else {
+      message.innerText = data.message;
+    }
+  });
+}
+
+function vote(positionId, candidateId) {
+  fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "vote",
+      userId: currentUser,
+      positionId,
+      candidateId
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
+    message.innerText = data.message || "Vote submitted";
+    loadResults();
+  });
+}
+
+function loadResults() {
+  fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "results" })
+  })
+  .then(r => r.json())
+  .then(data => {
+    new Chart(chart, {
+      type: "bar",
+      data: {
+        labels: Object.keys(data),
+        datasets: [{
+          data: Object.values(data)
+        }]
+      }
+    });
+  });
+}
+</script>
+
+</body>
+</html>
