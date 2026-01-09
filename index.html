@@ -1,112 +1,261 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Online Voting System</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Secure Online Voting</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
+  
   <style>
+    /* GitHub Pages Friendly CSS */
+    :root {
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --bg: #f3f4f6;
+      --card-bg: #ffffff;
+      --text: #1f2937;
+    }
+
     body {
-      font-family: Arial;
-      text-align: center;
-      max-width: 480px;
-      margin: auto;
-      padding-top: 40px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
     }
-    input, button {
-      padding: 12px;
-      margin: 6px;
+
+    .container {
+      background: var(--card-bg);
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
       width: 100%;
+      max-width: 500px;
+      text-align: center;
     }
-    #voteSection { display: none; }
+
+    h2, h3 { color: var(--text); margin-bottom: 1rem; }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      box-sizing: border-box;
+      font-size: 16px;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-bottom: 8px;
+    }
+
+    button:hover { background-color: var(--primary-hover); }
+    button:disabled { background-color: #9ca3af; cursor: not-allowed; }
+
+    .candidate-btn {
+      background-color: white;
+      color: var(--text);
+      border: 2px solid #e5e7eb;
+    }
+
+    .candidate-btn:hover { background-color: #f9fafb; border-color: var(--primary); }
+
+    #voteSection, #loading { display: none; }
+    
+    .status-msg { margin-top: 15px; font-weight: bold; min-height: 24px; }
+    .success { color: #059669; }
+    .error { color: #dc2626; }
+
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid var(--primary);
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+      margin: 20px auto;
+    }
+
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
 
-<h2>Login</h2>
+<div class="container">
+  <div id="loading">
+    <div class="spinner"></div>
+    <p>Processing...</p>
+  </div>
 
-<div id="loginSection">
-  <input id="userId" placeholder="User ID">
-  <input id="password" type="password" placeholder="Password">
-  <button onclick="login()">Login</button>
+  <div id="loginSection">
+    <h2>Voter Login</h2>
+    <input id="userId" type="text" placeholder="Enter User ID" autocomplete="off">
+    <input id="password" type="password" placeholder="Enter Password">
+    <button onclick="handleLogin()">Login to Vote</button>
+  </div>
+
+  <div id="voteSection">
+    <h3>Cast Your Vote</h3>
+    
+    <div style="text-align: left; margin-bottom: 20px;">
+      <p><strong>Position: President</strong></p>
+      <button class="candidate-btn" onclick="handleVote(1, 1, 'Alice')">Vote for Alice</button>
+      <button class="candidate-btn" onclick="handleVote(1, 2, 'Bob')">Vote for Bob</button>
+
+      <p style="margin-top: 20px;"><strong>Position: Vice President</strong></p>
+      <button class="candidate-btn" onclick="handleVote(2, 3, 'Carol')">Vote for Carol</button>
+    </div>
+
+    <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+
+    <h3>Live Results</h3>
+    <div style="position: relative; height: 250px;">
+      <canvas id="chart"></canvas>
+    </div>
+  </div>
+
+  <p id="message" class="status-msg"></p>
 </div>
-
-<div id="voteSection">
-  <h3>President</h3>
-  <button onclick="vote(1, 1)">Alice</button>
-  <button onclick="vote(1, 2)">Bob</button>
-
-  <h3>Vice President</h3>
-  <button onclick="vote(2, 3)">Carol</button>
-</div>
-
-<p id="message"></p>
-
-<h3>Live Results</h3>
-<canvas id="chart"></canvas>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxwbUUGRQHX_N6SX2D2FI904L4F44z6Y3Uy0nNOTTjS1Ih6dKXVh4Mco_Nui-AeqgezLg/exec";
-let currentUser = "";
+// REPLACE THIS URL WITH YOUR DEPLOYED GOOGLE SCRIPT URL
+const API_URL = "https://script.google.com/macros/s/AKfycbxwbUUGRQHX_N6SX2D2FI904L4F44z6Y3Uy0nNOTTjS1Ih6dKXVh4Mco_Nui-AeqgezLg/exec"; 
 
-function login() {
-  fetch(API_URL, {
+let currentUser = "";
+let voteChart = null; 
+
+const toggleLoading = (show) => {
+  document.getElementById('loading').style.display = show ? 'block' : 'none';
+  if(show) {
+    document.getElementById('loginSection').style.display = 'none';
+    if(currentUser) document.getElementById('voteSection').style.display = 'none';
+  } else {
+    if(!currentUser) document.getElementById('loginSection').style.display = 'block';
+    if(currentUser) document.getElementById('voteSection').style.display = 'block';
+  }
+};
+
+const showMessage = (msg, type = 'neutral') => {
+  const el = document.getElementById('message');
+  el.innerText = msg;
+  el.className = 'status-msg ' + type;
+};
+
+// Generic Fetch Wrapper for GitHub compatibility
+async function apiRequest(bodyData) {
+  // text/plain prevents CORS preflight requests
+  const response = await fetch(API_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      action: "login",
-      userId: userId.value,
-      password: password.value
-    })
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.status === "success") {
-      currentUser = userId.value;
-      loginSection.style.display = "none";
-      voteSection.style.display = "block";
-      loadResults();
-    } else {
-      message.innerText = data.message;
-    }
+    redirect: "follow", 
+    headers: { "Content-Type": "text/plain;charset=utf-8" }, 
+    body: JSON.stringify(bodyData)
   });
+  return await response.json();
 }
 
-function vote(positionId, candidateId) {
-  fetch(API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+async function handleLogin() {
+  const userIdInput = document.getElementById('userId').value.trim();
+  const passwordInput = document.getElementById('password').value.trim();
+
+  if (!userIdInput || !passwordInput) return showMessage("Please fill in both fields.", "error");
+
+  toggleLoading(true);
+  showMessage("");
+
+  try {
+    const data = await apiRequest({
+      action: "login",
+      userId: userIdInput,
+      password: passwordInput
+    });
+
+    if (data.status === "success") {
+      currentUser = userIdInput;
+      document.getElementById('loginSection').style.display = "none";
+      document.getElementById('voteSection').style.display = "block";
+      showMessage(`Welcome, ${currentUser}!`, "success");
+      await loadResults();
+    } else {
+      showMessage(data.message || "Login failed", "error");
+    }
+  } catch (error) {
+    console.error(error);
+    showMessage("Connection failed. Check API URL.", "error");
+  } finally {
+    toggleLoading(false);
+  }
+}
+
+async function handleVote(positionId, candidateId, candidateName) {
+  if (!currentUser) return;
+  if(!confirm(`Vote for ${candidateName}?`)) return;
+
+  toggleLoading(true);
+  try {
+    const data = await apiRequest({
       action: "vote",
       userId: currentUser,
       positionId,
       candidateId
-    })
-  })
-  .then(r => r.json())
-  .then(data => {
-    message.innerText = data.message || "Vote submitted";
-    loadResults();
-  });
+    });
+    showMessage(data.message || "Vote submitted", "success");
+    await loadResults(); 
+  } catch (error) {
+    showMessage("Error submitting vote.", "error");
+  } finally {
+    toggleLoading(false);
+  }
 }
 
-function loadResults() {
-  fetch(API_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "results" })
-  })
-  .then(r => r.json())
-  .then(data => {
-    new Chart(chart, {
-      type: "bar",
-      data: {
-        labels: Object.keys(data),
-        datasets: [{
-          data: Object.values(data)
-        }]
-      }
-    });
+async function loadResults() {
+  try {
+    const data = await apiRequest({ action: "results" });
+    renderChart(data);
+  } catch (error) {
+    console.error("Failed to load results", error);
+  }
+}
+
+function renderChart(data) {
+  const ctx = document.getElementById('chart').getContext('2d');
+  if (voteChart) voteChart.destroy();
+
+  voteChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: Object.keys(data),
+      datasets: [{
+        label: 'Votes',
+        data: Object.values(data),
+        backgroundColor: '#4f46e5',
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+    }
   });
 }
 </script>
